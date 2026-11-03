@@ -45,6 +45,9 @@ jobs:
           fi
           pod --version
 
+      - name: Resolve dependencies
+        run: flutter pub get
+
       - name: Build unsigned iOS app
         run: python3 scripts/build_ios.py --all-sources
 
