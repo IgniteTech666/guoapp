@@ -1,0 +1,67 @@
+name: Build iPhone IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    env:
+      GOPROXY: https://proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+
+    steps:
+      - name: Download source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+
+      - name: Check Xcode and CocoaPods
+        run: |
+          xcodebuild -version
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+          pod --version
+
+      - name: Build unsigned iOS app
+        run: python3 scripts/build_ios.py --all-sources
+
+      - name: Package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ipa-package/Payload
+          ditto build/ios/iphoneos/Runner.app ipa-package/Payload/Runner.app
+          cd ipa-package
+          ditto -c -k --keepParent Payload zhenguojian-unsigned.ipa
+          unzip -l zhenguojian-unsigned.ipa | head -n 20 || true
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPhone-IPA
+          path: ipa-package/zhenguojian-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
